@@ -134,7 +134,11 @@ abstract class IntegrationTest {
     @Test
     fun testConfigurationCache() {
         // First run to store the configuration cache
-        createRunner("releaseOssLicensesTask").build()
+        val firstRun = createRunner("releaseOssLicensesTask").build()
+        Assert.assertFalse(
+            "Configurations should not be resolved during configuration time. Wrap resolution in a Provider.",
+            firstRun.output.contains("resolved during configuration time")
+        )
 
         // Clean to test configuration cache with a clean build
         createRunner("clean").build()
