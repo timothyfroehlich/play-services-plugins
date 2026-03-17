@@ -57,7 +57,7 @@ abstract class IntegrationTest {
             // while keeping all metadata inside the project's build directory for cleanliness.
             .withTestKitDir(File(System.getProperty("testkit_path"), this.javaClass.simpleName))
             // Enable strict configuration cache mode for all tests.
-            .withArguments(*arguments, "--configuration-cache", "-Dorg.gradle.configuration-cache.problems=fail")
+            .withArguments(*arguments, "--configuration-cache", "--configuration-cache-problems=fail")
     }
 
     @Before
@@ -103,6 +103,7 @@ abstract class IntegrationTest {
                     mavenCentral()
                 }
             }
+            enableFeaturePreview("STABLE_CONFIGURATION_CACHE")
             """.trimIndent()
         )
     }
