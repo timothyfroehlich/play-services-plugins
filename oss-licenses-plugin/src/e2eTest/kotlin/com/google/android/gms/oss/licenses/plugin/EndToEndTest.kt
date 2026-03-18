@@ -137,12 +137,14 @@ abstract class EndToEndTest {
     }
 
     private fun createRunner(vararg arguments: String): GradleRunner {
+        val repoPath = System.getProperty("repo_path")
+            ?: error("Missing repo_path system property — ensure 'publish' task has run")
         val runner = GradleRunner.create()
             .withProjectDir(projectDir)
             .withGradleVersion(gradleVersion)
             .withTestKitDir(File(System.getProperty("testkit_path"), this.javaClass.simpleName))
             .forwardOutput()
-            .withArguments(*arguments, "--configuration-cache", "--configuration-cache-problems=fail", "--parallel", "-s")
+            .withArguments(*arguments, "-PusePublishedPluginFrom=$repoPath", "--configuration-cache", "--configuration-cache-problems=fail", "--parallel", "-s")
 
         val javaHome = System.getProperty("java21_home")
         if (javaHome != null) {
