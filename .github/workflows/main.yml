@@ -145,7 +145,7 @@ jobs:
         uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # ratchet:gradle/actions/setup-gradle@v5.0.2
 
       - name: Pre-create Android SDK cache directory
-        run: mkdir -p ~/.android/cache
+        run: mkdir -p ~/.android/cache ~/.config/.android/cache
 
       - name: Restore GradleTestKit cache
         if: github.event_name == 'pull_request'
@@ -164,9 +164,6 @@ jobs:
           key: testkit-e2e-${{ runner.os }}-${{ hashFiles('oss-licenses-plugin/build.gradle.kts', 'oss-licenses-plugin/src/e2eTest/**/*Test*.kt', 'oss-licenses-plugin/testapp/settings.gradle.kts') }}
           restore-keys: |
             testkit-e2e-${{ runner.os }}-
-
-      - name: Pre-create Android SDK cache directory
-        run: mkdir -p ~/.android/cache
 
       - name: Run E2E Tests
         run: ./gradlew e2eTestTask

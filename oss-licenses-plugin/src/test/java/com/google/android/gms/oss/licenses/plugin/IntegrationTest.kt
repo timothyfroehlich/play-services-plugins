@@ -134,22 +134,27 @@ abstract class IntegrationTest {
 
     @Test
     fun testConfigurationCache() {
-        // First run to store the configuration cache
-        val firstRun = createRunner("releaseOssLicensesTask").build()
-        Assert.assertFalse(
-            "Configurations should not be resolved during configuration time. Wrap resolution in a Provider.",
-            firstRun.output.contains("resolved during configuration time")
-        )
+        // First run stores CC. With --configuration-cache-problems=fail, any CC problem fails here.
+        createRunner("releaseOssLicensesTask").build()
 
-        // Clean to test configuration cache with a clean build
+        // Clean to force re-execution (not UP-TO-DATE)
         createRunner("clean").build()
 
-        // Second run to reuse the configuration cache
+        // Second run must reuse the configuration cache
         val result = createRunner("releaseOssLicensesTask").build()
-
         Assert.assertTrue(
+            "Expected CC reuse but got:\n${result.output.lines().filter { "onfiguration cache" in it }.joinToString("\n")}",
             result.output.contains("Reusing configuration cache") ||
                 result.output.contains("Configuration cache entry reused")
+        )
+    }
+
+    @Test
+    fun testNoEagerResolution() {
+        val result = createRunner("releaseOssLicensesTask").build()
+        Assert.assertFalse(
+            "Configurations should not be resolved during configuration time. Wrap resolution in a Provider.",
+            result.output.contains("resolved during configuration time")
         )
     }
 

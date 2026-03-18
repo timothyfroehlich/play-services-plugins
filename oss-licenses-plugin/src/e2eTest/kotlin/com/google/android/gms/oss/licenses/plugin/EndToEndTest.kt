@@ -161,15 +161,10 @@ abstract class EndToEndTest {
 
     @Test
     fun testConfigurationCache() {
-        // First run stores the configuration cache — exercises the full task graph (both variants).
-        // With --configuration-cache-problems=fail, any CC problem will fail the build here.
-        val firstRun = createRunner("build").build()
-        Assert.assertFalse(
-            "Configurations should not be resolved during configuration time. Wrap resolution in a Provider.",
-            firstRun.output.contains("resolved during configuration time")
-        )
+        // First run stores CC. With --configuration-cache-problems=fail, any CC problem fails here.
+        createRunner("build").build()
 
-        // Clean to force tasks to re-execute (not skip as UP-TO-DATE)
+        // Clean to force re-execution (not UP-TO-DATE)
         createRunner("clean").build()
 
         // Second run must reuse the configuration cache
@@ -178,6 +173,15 @@ abstract class EndToEndTest {
             "Expected CC reuse but got:\n${result.output.lines().filter { "onfiguration cache" in it }.joinToString("\n")}",
             result.output.contains("Reusing configuration cache") ||
                 result.output.contains("Configuration cache entry reused")
+        )
+    }
+
+    @Test
+    fun testNoEagerResolution() {
+        val result = createRunner("build").build()
+        Assert.assertFalse(
+            "Configurations should not be resolved during configuration time. Wrap resolution in a Provider.",
+            result.output.contains("resolved during configuration time")
         )
     }
 }
