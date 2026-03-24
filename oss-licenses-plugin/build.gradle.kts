@@ -112,9 +112,9 @@ tasks.withType<Test>().configureEach {
     val localVersion = project.version.toString()
     systemProperties["plugin_version"] = localVersion // value used by IntegrationTest.kt
     systemProperties["testkit_path"] = layout.buildDirectory.dir("testkit").get().asFile.absolutePath
+    systemProperties["java21_home"] = java21Home.get() // value used by EndToEndTest.kt
     doFirst {
-        // Inside doFirst to avoid forcing toolchain resolution and absolute path snapshotting at configuration time
-        systemProperties["java21_home"] = java21Home.get() // value used by EndToEndTest.kt
+        // Inside doFirst to make sure that absolute path is not considered to be input to the task
         systemProperties["repo_path"] = localRepo.get().asFile.absolutePath // value used by IntegrationTest.kt
     }
 

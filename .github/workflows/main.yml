@@ -116,10 +116,14 @@ jobs:
           path: oss-licenses-plugin/build/repo/
 
   # Heavy E2E tests that build the full testapp against multiple AGP versions.
-  # Runs in parallel with testapp-verification after the plugin is built and published.
+  # Each AGP version runs on its own runner for parallelism (~15 min vs ~45 min sequential).
   oss-licenses-e2e:
     needs: oss-licenses-build
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        agp-version: [AGP812, AGP_STABLE, AGP_ALPHA]
     env:
       ANDROID_USER_HOME: /home/runner/.android
     steps:
@@ -147,28 +151,28 @@ jobs:
         uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # ratchet:gradle/actions/setup-gradle@v5.0.2
 
       - name: Pre-create Android SDK cache directory
-        run: mkdir -p $ANDROID_USER_HOME/cache
+        run: mkdir -p "$ANDROID_USER_HOME/cache"
 
       - name: Restore GradleTestKit cache
         if: github.event_name == 'pull_request'
         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # ratchet:actions/cache/restore@v4.2.3
         with:
           path: oss-licenses-plugin/build/testkit
-          key: testkit-e2e-${{ runner.os }}-${{ hashFiles('oss-licenses-plugin/build.gradle.kts', 'oss-licenses-plugin/src/e2eTest/**/*Test*.kt', 'oss-licenses-plugin/testapp/settings.gradle.kts') }}
+          key: testkit-e2e-${{ matrix.agp-version }}-${{ runner.os }}-${{ hashFiles('oss-licenses-plugin/build.gradle.kts', 'oss-licenses-plugin/src/e2eTest/**/*Test*.kt', 'oss-licenses-plugin/testapp/settings.gradle.kts') }}
           restore-keys: |
-            testkit-e2e-${{ runner.os }}-
+            testkit-e2e-${{ matrix.agp-version }}-${{ runner.os }}-
 
       - name: Cache GradleTestKit directories
         if: github.event_name != 'pull_request'
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # ratchet:actions/cache@v4.2.3
         with:
           path: oss-licenses-plugin/build/testkit
-          key: testkit-e2e-${{ runner.os }}-${{ hashFiles('oss-licenses-plugin/build.gradle.kts', 'oss-licenses-plugin/src/e2eTest/**/*Test*.kt', 'oss-licenses-plugin/testapp/settings.gradle.kts') }}
+          key: testkit-e2e-${{ matrix.agp-version }}-${{ runner.os }}-${{ hashFiles('oss-licenses-plugin/build.gradle.kts', 'oss-licenses-plugin/src/e2eTest/**/*Test*.kt', 'oss-licenses-plugin/testapp/settings.gradle.kts') }}
           restore-keys: |
-            testkit-e2e-${{ runner.os }}-
+            testkit-e2e-${{ matrix.agp-version }}-${{ runner.os }}-
 
-      - name: Run E2E Tests
-        run: ./gradlew e2eTestTask
+      - name: Run E2E Tests (${{ matrix.agp-version }})
+        run: ./gradlew e2eTestTask --tests "*EndToEndTest_${{ matrix.agp-version }}*"
         working-directory: ./oss-licenses-plugin
 
   # Build the testapp and verify configuration cache store → clean → reuse.
