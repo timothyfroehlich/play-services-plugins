@@ -120,6 +120,8 @@ jobs:
   oss-licenses-e2e:
     needs: oss-licenses-build
     runs-on: ubuntu-latest
+    env:
+      ANDROID_USER_HOME: /home/runner/.android
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6.0.2
 
@@ -145,7 +147,7 @@ jobs:
         uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # ratchet:gradle/actions/setup-gradle@v5.0.2
 
       - name: Pre-create Android SDK cache directory
-        run: mkdir -p ~/.android/cache ~/.config/.android/cache
+        run: mkdir -p $ANDROID_USER_HOME/cache
 
       - name: Restore GradleTestKit cache
         if: github.event_name == 'pull_request'
