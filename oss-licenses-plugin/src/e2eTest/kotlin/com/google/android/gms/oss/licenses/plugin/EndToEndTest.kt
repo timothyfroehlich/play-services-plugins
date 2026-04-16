@@ -137,16 +137,27 @@ abstract class EndToEndTest {
     }
 
     private fun createRunner(vararg arguments: String): GradleRunner {
+        // -PusePublishedPluginFrom forces the testapp to resolve the plugin from the locally-published
+        // Maven repo (see testapp/settings.gradle.kts). Without it, includeBuild("..") points at the
+        // temp folder's parent, falls through silently, and Gradle resolves the "+" version from
+        // Google Maven — meaning the test runs against the published plugin, not the local build.
         val runner = GradleRunner.create()
             .withProjectDir(projectDir)
             .withGradleVersion(gradleVersion)
             .withTestKitDir(File(System.getProperty("testkit_path"), this.javaClass.simpleName))
             .forwardOutput()
-            .withArguments(*arguments, "--configuration-cache", "--parallel", "-Dorg.gradle.configuration-cache.problems=fail", "-s")
+            .withArguments(
+                *arguments,
+                "-PusePublishedPluginFrom=${System.getProperty("repo_path")}",
+                "--configuration-cache", "--parallel",
+                "-Dorg.gradle.configuration-cache.problems=fail", "-s"
+            )
 
         val javaHome = System.getProperty("java21_home")
         if (javaHome != null) {
-            runner.withEnvironment(mapOf("JAVA_HOME" to javaHome))
+            // Merge with the host environment — withEnvironment() replaces it entirely, so a bare
+            // map of {JAVA_HOME} would strip PATH, ANDROID_HOME, HOME, etc. from the forked Gradle.
+            runner.withEnvironment(System.getenv() + mapOf("JAVA_HOME" to javaHome))
         }
         return runner
     }

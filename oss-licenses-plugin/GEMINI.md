@@ -50,7 +50,7 @@ To allow safe parallel execution, each test subclass uses a dedicated `TestKit` 
 ### JVM & Toolchain Management
 To ensure tests run consistently regardless of the host environment:
 1.  **Java 21 Injection:** The build script uses the `JavaToolchainService` to locate a Java 21 JDK. This path is injected into the tests via the `java21_home` system property.
-2.  **JAVA_HOME Override:** Both `IntegrationTest` and `EndToEndTest` use `.withEnvironment(mapOf("JAVA_HOME" to java21Home))` to force the Gradle Runner to use the correct JVM.
+2.  **JAVA_HOME Override:** `EndToEndTest` uses `.withEnvironment(System.getenv() + mapOf("JAVA_HOME" to java21Home))` to force the Gradle Runner to use the correct JVM while preserving `PATH`, `ANDROID_HOME`, and other host environment variables. (`IntegrationTest` does not need this — it doesn't fork a full Android build.)
 3.  **Daemon Provisioning:** For older Gradle versions (like 8.11), the tests explicitly delete `gradle-daemon-jvm.properties` in the test workspace to prevent failing internal toolchain discovery.
 
 ---

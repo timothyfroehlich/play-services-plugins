@@ -113,8 +113,10 @@ tasks.withType<Test>().configureEach {
     systemProperties["plugin_version"] = localVersion // value used by IntegrationTest.kt
     // Point TestKit to a directory inside the host Gradle User Home so it can be cached by CI (setup-gradle)
     systemProperties["testkit_path"] = File(System.getProperty("user.home"), ".gradle/testkit").absolutePath
-    systemProperties["java21_home"] = java21Home.get() // value used by EndToEndTest.kt
     doFirst {
+        // Resolved inside doFirst so contributors without JDK 21 can still run ./gradlew help, tasks, etc.
+        // — the toolchain is only required when a Test task actually executes.
+        systemProperties["java21_home"] = java21Home.get() // value used by EndToEndTest.kt
         // Inside doFirst to make sure that absolute path is not considered to be input to the task
         systemProperties["repo_path"] = localRepo.get().asFile.absolutePath // value used by IntegrationTest.kt
     }

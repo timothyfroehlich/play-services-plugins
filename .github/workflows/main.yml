@@ -130,9 +130,10 @@ jobs:
         run: ./gradlew test --tests "com.google.android.gms.oss.licenses.plugin.IntegrationTest_${{ matrix.agp-version-key }}"
         working-directory: ./oss-licenses-plugin
 
-  # Build the testapp and verify configuration cache store → clean → reuse.
+  # Run end-to-end tests: build the full testapp against the AGP/Gradle version matrix.
+  # Uses the locally-published plugin from oss-licenses-build via -PusePublishedPluginFrom.
   # CC strictness flags are in testapp/gradle.properties (always on).
-  oss-licenses-testapp:
+  oss-licenses-e2e:
     needs: oss-licenses-build
     runs-on: ubuntu-latest
     strategy:
