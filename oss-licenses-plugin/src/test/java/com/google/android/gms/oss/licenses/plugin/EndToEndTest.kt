@@ -174,22 +174,31 @@ abstract class EndToEndTest(private val agpVersion: String, private val gradleVe
         """.trimIndent()
         )
 
-        // 3. First build - Success
+        // 3. First build - both tasks should succeed
         val firstResult = createRunner("releaseOssLicensesTask").build()
+        Assert.assertEquals(TaskOutcome.SUCCESS, firstResult.task(":releaseOssDependencyTask")!!.outcome)
         Assert.assertEquals(TaskOutcome.SUCCESS, firstResult.task(":releaseOssLicensesTask")!!.outcome)
 
-        // 4. Second build - UP-TO-DATE
+        // 4. Second build - both tasks should be UP-TO-DATE
         val secondResult = createRunner("releaseOssLicensesTask").build()
+        Assert.assertEquals(TaskOutcome.UP_TO_DATE, secondResult.task(":releaseOssDependencyTask")!!.outcome)
         Assert.assertEquals(TaskOutcome.UP_TO_DATE, secondResult.task(":releaseOssLicensesTask")!!.outcome)
 
         // 5. Update snapshot - Publish version 2
         publishSnapshot(localRepo, group, name, version, "License content v2")
 
-        // 6. Third build - SUCCESS (not UP-TO-DATE because hash changed)
-        // Note: We use --refresh-dependencies to ensure Gradle actually re-downloads the snapshot
-        // from our local "remote" repo instead of using its local cache.
+        // 6. Third build - DependencyTask must re-execute because the snapshot hash changed,
+        // which in turn causes LicensesTask to re-execute.
+        // --refresh-dependencies ensures Gradle re-downloads the snapshot from the local repo.
         val thirdResult = createRunner("releaseOssLicensesTask", "--refresh-dependencies").build()
-        Assert.assertEquals(TaskOutcome.SUCCESS, thirdResult.task(":releaseOssLicensesTask")!!.outcome)
+        Assert.assertEquals(
+            "DependencyTask should re-execute when snapshot content changes",
+            TaskOutcome.SUCCESS, thirdResult.task(":releaseOssDependencyTask")!!.outcome
+        )
+        Assert.assertEquals(
+            "LicensesTask should re-execute after DependencyTask produces new output",
+            TaskOutcome.SUCCESS, thirdResult.task(":releaseOssLicensesTask")!!.outcome
+        )
     }
 
     private fun publishSnapshot(repo: File, group: String, name: String, version: String, licenseText: String) {
@@ -212,6 +221,21 @@ abstract class EndToEndTest(private val agpVersion: String, private val gradleVe
                 </license>
               </licenses>
             </project>
+        """.trimIndent()
+        )
+
+        // Write maven-metadata.xml so Gradle can discover the SNAPSHOT version
+        File(repo, "$groupPath/$name/maven-metadata.xml").writeText(
+            """
+            <metadata>
+              <groupId>$group</groupId>
+              <artifactId>$name</artifactId>
+              <versioning>
+                <versions>
+                  <version>$version</version>
+                </versions>
+              </versioning>
+            </metadata>
         """.trimIndent()
         )
 

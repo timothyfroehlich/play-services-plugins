@@ -18,10 +18,11 @@ package com.google.android.gms.oss.licenses.plugin
 
 import com.android.tools.build.libraries.metadata.AppDependencies
 import groovy.json.JsonBuilder
-import groovy.json.JsonGenerator
+import groovy.transform.PackageScope
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.tasks.CacheableTask
+import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputFile
@@ -29,10 +30,8 @@ import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.provider.MapProperty
-import org.gradle.api.tasks.Internal
 import org.slf4j.LoggerFactory
 
-import java.security.MessageDigest
 import java.util.stream.Collectors
 
 import static com.android.tools.build.libraries.metadata.Library.LibraryOneofCase.MAVEN_LIBRARY
@@ -44,10 +43,11 @@ import static com.android.tools.build.libraries.metadata.Library.LibraryOneofCas
  * If the protobuf is not present (e.g. debug variants) it writes a single
  * dependency on the {@link #ABSENT_ARTIFACT}.
  *
- * To support active development with SNAPSHOT dependencies, this task calculates
- * a hash of each snapshot artifact. If the snapshot is re-published with changes,
- * the generated JSON report will change, which in turn triggers a re-run of
- * the {@link LicensesTask} to update the final license output.
+ * To support active development with SNAPSHOT dependencies, pre-computed hashes
+ * of SNAPSHOT artifacts are provided via {@link #getSnapshotHashes()}. These are
+ * tracked as {@code @Input} so Gradle detects when a re-published SNAPSHOT has
+ * different content, triggering re-execution and propagating the change to
+ * {@link LicensesTask}.
  */
 @CacheableTask
 abstract class DependencyTask extends DefaultTask {
@@ -55,7 +55,8 @@ abstract class DependencyTask extends DefaultTask {
 
     // Sentinel written to the JSON when AGP does not provide a dependency report (e.g. debug
     // variants). LicensesTask detects this and renders a placeholder message instead of licenses.
-    protected static final ArtifactInfo ABSENT_ARTIFACT =
+    @PackageScope
+    static final ArtifactInfo ABSENT_ARTIFACT =
             new ArtifactInfo("absent", "absent", "absent")
 
     @OutputFile
@@ -67,15 +68,17 @@ abstract class DependencyTask extends DefaultTask {
     abstract RegularFileProperty getLibraryDependenciesReport()
 
     /**
-     * Map of GAV coordinates (group:name:version) to physical JAR/AAR files.
-     * Used to calculate hashes for SNAPSHOT versions to ensure correctness.
+     * Pre-computed SHA-256 hashes for SNAPSHOT artifacts, keyed by GAV coordinate.
+     * Computed lazily in {@link OssLicensesPlugin} from the resolved artifact files.
      *
-     * Why @Internal? Same reason as in LicensesTask: the dependenciesJson report (which IS an @InputFile)
-     * is the stable proxy for this information. This task only reads these files to append a hash
-     * to that report if the version is a snapshot.
+     * This is an {@code @Input} so Gradle tracks the hash values for up-to-date checks.
+     * When a SNAPSHOT is re-published with different content, its hash changes, which
+     * causes this task to re-execute and produce an updated JSON report — in turn
+     * triggering {@link LicensesTask} to re-run.
      */
-    @Internal
-    abstract MapProperty<String, File> getLibraryFilesByGav()
+    @Input
+    @Optional
+    abstract MapProperty<String, String> getSnapshotHashes()
 
     @TaskAction
     void action() {
@@ -120,7 +123,7 @@ abstract class DependencyTask extends DefaultTask {
     private Set<ArtifactInfo> convertDependenciesToArtifactInfo(
             AppDependencies appDependencies
     ) {
-        Map<String, File> fileMap = libraryFilesByGav.getOrElse([:])
+        Map<String, String> hashes = snapshotHashes.getOrElse([:])
 
         return appDependencies.libraryList.stream()
                 .filter { it.libraryOneofCase == MAVEN_LIBRARY }
@@ -137,28 +140,14 @@ abstract class DependencyTask extends DefaultTask {
                     String group = library.mavenLibrary.groupId
                     String name = library.mavenLibrary.artifactId
                     String version = library.mavenLibrary.version
-                    String hash = null
-
-                    if (version.endsWith("-SNAPSHOT")) {
-                        File file = fileMap.get("$group:$name:$version".toString())
-                        if (file != null && file.exists()) {
-                            hash = calculateHash(file)
-                        }
-                    }
+                    String gav = "$group:$name:$version".toString()
+                    String hash = hashes.get(gav)
 
                     return new ArtifactInfo(group, name, version, hash)
                 }.collect(Collectors.toCollection(LinkedHashSet::new))
     }
 
-    protected String calculateHash(File file) {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256")
-        file.eachByte(4096) { buffer, length ->
-            digest.update(buffer, 0, length)
-        }
-        return digest.digest().encodeHex().toString()
-    }
-
-    protected void initOutput(File outputDir) {
+    private static void initOutput(File outputDir) {
         if (!outputDir.exists()) {
             outputDir.mkdirs()
         }

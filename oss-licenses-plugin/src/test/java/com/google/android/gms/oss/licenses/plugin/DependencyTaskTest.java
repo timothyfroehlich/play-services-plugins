@@ -28,8 +28,6 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Type;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -144,14 +142,11 @@ public class DependencyTaskTest {
     File protoFile = writeAppDependencies(appDependencies, temporaryFolder.newFile());
     dependencyTask.getLibraryDependenciesReport().set(protoFile);
 
-    // Create a dummy artifact file
-    File artifactFile = temporaryFolder.newFile("artifact-1.0.0-SNAPSHOT.jar");
-    String content = "dummy jar content";
-    Files.write(artifactFile.toPath(), content.getBytes(StandardCharsets.UTF_8));
-
-    Map<String, File> libraryFiles = new HashMap<>();
-    libraryFiles.put("org.group:artifact:" + snapshotVersion, artifactFile);
-    dependencyTask.getLibraryFilesByGav().set(libraryFiles);
+    // Provide pre-computed snapshot hashes (as the plugin would)
+    String expectedHash = "abc123def456";
+    Map<String, String> hashes = new HashMap<>();
+    hashes.put("org.group:artifact:" + snapshotVersion, expectedHash);
+    dependencyTask.getSnapshotHashes().set(hashes);
 
     dependencyTask.action();
 
@@ -162,9 +157,58 @@ public class DependencyTaskTest {
       Collection<ArtifactInfo> jsonArtifacts = gson.fromJson(reader, collectionOfArtifactInfo);
       assertThat(jsonArtifacts).hasSize(1);
       ArtifactInfo info = jsonArtifacts.iterator().next();
-      assertThat(info.getHash()).isNotNull();
+      assertThat(info.getHash()).isEqualTo(expectedHash);
       assertThat(info.getVersion()).isEqualTo(snapshotVersion);
     }
+  }
+
+  /**
+   * Verifies that SNAPSHOT artifact file content is tracked as a Gradle task input.
+   *
+   * <p>DependencyTask is @CacheableTask and computes hashes of SNAPSHOT artifact files
+   * to detect when a re-published SNAPSHOT has different content. However, the
+   * {@code libraryFilesByGav} property is annotated @Internal, which means Gradle's
+   * up-to-date checking ignores it entirely. When a SNAPSHOT JAR changes on disk
+   * (same GAV, different content), Gradle considers the task UP-TO-DATE and never
+   * re-executes it -- making the snapshot hashing feature dead code.
+   *
+   * <p>This test fails until a proper @Input property is added that exposes the
+   * computed snapshot hashes to Gradle's up-to-date checking.
+   */
+  @Test
+  public void testSnapshotFileChange_isVisibleToGradleUpToDateChecking() throws Exception {
+    // Set up the task with a SNAPSHOT dependency
+    File outputDir = temporaryFolder.newFolder();
+    File outputJson = new File(outputDir, "test.json");
+    dependencyTask.getDependenciesJson().set(outputJson);
+
+    String snapshotVersion = "1.0.0-SNAPSHOT";
+    ArtifactInfo snapshotDep = new ArtifactInfo("org.group", "artifact", snapshotVersion);
+    AppDependencies appDependencies = createAppDependencies(ImmutableSet.of(snapshotDep));
+    File protoFile = writeAppDependencies(appDependencies, temporaryFolder.newFile());
+    dependencyTask.getLibraryDependenciesReport().set(protoFile);
+
+    // Provide pre-computed snapshot hashes (as the plugin would)
+    Map<String, String> hashesV1 = new HashMap<>();
+    hashesV1.put("org.group:artifact:" + snapshotVersion, "hash_of_original_content");
+    dependencyTask.getSnapshotHashes().set(hashesV1);
+
+    // Capture task input properties with the original hash
+    Map<String, Object> inputsBefore = new HashMap<>(
+        dependencyTask.getInputs().getProperties());
+
+    // Simulate a re-published SNAPSHOT by changing the hash
+    Map<String, String> hashesV2 = new HashMap<>();
+    hashesV2.put("org.group:artifact:" + snapshotVersion, "hash_of_modified_content");
+    dependencyTask.getSnapshotHashes().set(hashesV2);
+
+    // Capture input properties after the hash changes
+    Map<String, Object> inputsAfter = new HashMap<>(
+        dependencyTask.getInputs().getProperties());
+
+    // The task inputs MUST differ when the SNAPSHOT hash changes.
+    // This proves Gradle will detect the change and re-execute the task.
+    assertThat(inputsAfter).isNotEqualTo(inputsBefore);
   }
 
   private void verifyExpectedDependencies(ImmutableSet<ArtifactInfo> expectedArtifacts,

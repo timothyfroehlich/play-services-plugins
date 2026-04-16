@@ -59,8 +59,7 @@ class ArtifactInfo {
         if (obj instanceof ArtifactInfo) {
             return (group == obj.group
                     && name == obj.name
-                    && version == obj.version
-                    && hash == obj.hash)
+                    && version == obj.version)
         }
         return false
     }
@@ -70,17 +69,11 @@ class ArtifactInfo {
         int result = group.hashCode()
         result = 31 * result + name.hashCode()
         result = 31 * result + version.hashCode()
-        result = 31 * result + (hash != null ? hash.hashCode() : 0)
         return result
     }
 
     @Override
     String toString() {
         return "$group:$name:$version"
-    }
-
-    String toDebugString() {
-        String base = toString()
-        return hash != null ? "$base@$hash" : base
     }
 }

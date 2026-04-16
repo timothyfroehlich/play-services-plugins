@@ -63,7 +63,8 @@ class OssLicensesPlugin implements Plugin<Project> {
         project.plugins.configureEach { plugin ->
             if (plugin instanceof AppPlugin) {
                 def androidComponents = project.extensions.getByType(ApplicationAndroidComponentsExtension)
-                androidComponents.onVariants(androidComponents.selector().all()) { variant -> configureLicenseTasks(project, variant)
+                androidComponents.onVariants(androidComponents.selector().all()) { variant ->
+                    configureLicenseTasks(project, variant)
                 }
             }
         }
@@ -97,8 +98,7 @@ class OssLicensesPlugin implements Plugin<Project> {
         def depHandler = project.dependencies
 
         // GAV → library file (JAR/AAR), for extracting bundled license data from
-        // Google Play Services artifacts. Used by DependencyTask to calculate hashes for snapshots,
-        // and by LicensesTask to extract license files.
+        // Google Play Services artifacts (used by LicensesTask).
         //
         // The .map {} lambda runs lazily — only when a task actually executes and reads this property.
         // On builds with configuration cache hits, Gradle skips the lambda entirely and uses
@@ -110,18 +110,29 @@ class OssLicensesPlugin implements Plugin<Project> {
             }
         }
 
+        // GAV → SHA-256 hash for SNAPSHOT artifacts only. Computed lazily from the
+        // resolved library files. This is passed to DependencyTask as an @Input so
+        // Gradle's up-to-date checking detects when a SNAPSHOT is re-published with
+        // different content.
+        def snapshotHashesProvider = libraryFilesByGavProvider.map { Map<String, File> fileMap ->
+            fileMap.findAll { gav, file -> gav.endsWith("-SNAPSHOT") && file.exists() }
+                    .collectEntries { gav, file ->
+                        def digest = java.security.MessageDigest.getInstance("SHA-256")
+                        file.eachByte(4096) { buffer, length -> digest.update(buffer, 0, length) }
+                        [(gav): digest.digest().encodeHex().toString()]
+                    }
+        }
+
         // Task 1: Dependency Identification
         // Converts AGP's METADATA_LIBRARY_DEPENDENCIES_REPORT protobuf into a stable JSON list.
         // libraryDependenciesReport is @Optional — debug variants don't get the report, so the
         // task writes a sentinel entry instead.
-        // This task also calculates hashes for SNAPSHOT versions to ensure that LicensesTask
-        // re-runs if a snapshot is re-published.
         def dependenciesJson = baseDir.map { it.file("dependencies.json") }
         TaskProvider<DependencyTask> dependencyTask = project.tasks.register("${variant.name}OssDependencyTask",
                 DependencyTask.class) {
             it.dependenciesJson.set(dependenciesJson)
             it.libraryDependenciesReport.set(variant.artifacts.get(SingleArtifact.METADATA_LIBRARY_DEPENDENCIES_REPORT.INSTANCE))
-            it.libraryFilesByGav.set(libraryFilesByGavProvider)
+            it.snapshotHashes.set(snapshotHashesProvider)
         }
         project.logger.debug("Registered task ${dependencyTask.name}")
 

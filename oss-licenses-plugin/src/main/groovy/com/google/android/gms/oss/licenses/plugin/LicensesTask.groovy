@@ -66,22 +66,27 @@ abstract class LicensesTask extends DefaultTask {
             "(e.g. release) where the Android Gradle Plugin " +
             "generates an app dependency list.")
 
-    // Library JARs/AARs keyed by "group:name:version", used to extract bundled license data
-    // from Google Play Services / Firebase artifacts.
-    //
-    // Why @Internal instead of @InputFiles?
-    // Gradle uses task input annotations to compute a cache key for up-to-date checks and build
-    // cache lookups. If these maps were @InputFiles, Gradle would hash every JAR/AAR and POM,
-    // which is expensive and redundant. The dependenciesJson file (which IS @InputFile) already
-    // captures the full dependency set as a stable JSON list. Since Maven Central artifacts are
-    // immutable per GAV coordinate (you can't re-publish the same version), the physical files
-    // can only change when the dependency list itself changes — which dependenciesJson already
-    // tracks. Using @Internal avoids the redundant hashing while maintaining correctness.
+    /**
+     * Library JARs/AARs keyed by "group:name:version", used to extract bundled license data
+     * from Google Play Services / Firebase artifacts.
+     *
+     * Why {@code @Internal} instead of {@code @InputFiles}?
+     * Gradle uses task input annotations to compute a cache key for up-to-date checks and build
+     * cache lookups. If these maps were {@code @InputFiles}, Gradle would hash every JAR/AAR and
+     * POM, which is expensive and redundant. The {@code dependenciesJson} file (which IS
+     * {@code @InputFile}) already captures the full dependency set as a stable JSON list. Since
+     * Maven Central artifacts are immutable per GAV coordinate (you can't re-publish the same
+     * version), the physical files can only change when the dependency list itself changes —
+     * which {@code dependenciesJson} already tracks. Using {@code @Internal} avoids the redundant
+     * hashing while maintaining correctness.
+     */
     @Internal
     abstract MapProperty<String, File> getLibraryFilesByGav()
 
-    // POM files keyed by "group:name:version", for reading <licenses> URLs from Maven metadata.
-    // @Internal for the same reason as libraryFilesByGav above.
+    /**
+     * POM files keyed by "group:name:version", for reading {@code <licenses>} URLs from Maven
+     * metadata. {@code @Internal} for the same reason as {@link #getLibraryFilesByGav()}.
+     */
     @Internal
     abstract MapProperty<String, File> getPomFilesByGav()
 
