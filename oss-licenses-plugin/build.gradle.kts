@@ -99,6 +99,9 @@ val integrationTestVersions = (e2eVersions + integrationOnlyVersions).mapKeys { 
 val repo: Provider<Directory> = layout.buildDirectory.dir("repo")
 tasks.withType<Test>().configureEach {
     val localRepo = repo
+    // Capture into a local so the doFirst action doesn't serialize a reference to the outer
+    // build script object (which the configuration cache rejects).
+    val localJava21Home = java21Home
     // Make sure that build/repo is created and that it is used as input for the test task.
     // Replace this with something less ugly if https://github.com/gradle/gradle/issues/34870 is fixed
     dependsOn("publish")
@@ -116,7 +119,7 @@ tasks.withType<Test>().configureEach {
     doFirst {
         // Resolved inside doFirst so contributors without JDK 21 can still run ./gradlew help, tasks, etc.
         // — the toolchain is only required when a Test task actually executes.
-        systemProperties["java21_home"] = java21Home.get() // value used by EndToEndTest.kt
+        systemProperties["java21_home"] = localJava21Home.get() // value used by EndToEndTest.kt
         // Inside doFirst to make sure that absolute path is not considered to be input to the task
         systemProperties["repo_path"] = localRepo.get().asFile.absolutePath // value used by IntegrationTest.kt
     }
