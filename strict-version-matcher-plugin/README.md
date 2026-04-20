@@ -23,4 +23,4 @@ classpath 'com.google.android.gms:strict-version-matcher-plugin:1.2.4'
 ```
 
 These instructions are also documented
-[online](//developers.google.com/android/guides/versioning)
+[online](//developers.google.com/android/guides/versioning).
