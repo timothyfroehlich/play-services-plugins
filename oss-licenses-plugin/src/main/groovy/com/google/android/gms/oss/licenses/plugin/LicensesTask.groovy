@@ -79,6 +79,12 @@ abstract class LicensesTask extends DefaultTask {
      * version), the physical files can only change when the dependency list itself changes —
      * which {@code dependenciesJson} already tracks. Using {@code @Internal} avoids the redundant
      * hashing while maintaining correctness.
+     *
+     * <p>SNAPSHOT edge case: {@code DependencyTask.snapshotHashes} tracks JAR/AAR content changes
+     * for SNAPSHOT versions, invalidating {@code dependenciesJson} when the artifact content
+     * changes. A re-published SNAPSHOT POM with unchanged JAR (e.g. only the {@code <licenses>}
+     * block was edited) would not be detected — an acceptable gap given SNAPSHOTs are not an
+     * expected distribution channel for consumers of this plugin.
      */
     @Internal
     abstract MapProperty<String, File> getLibraryFilesByGav()

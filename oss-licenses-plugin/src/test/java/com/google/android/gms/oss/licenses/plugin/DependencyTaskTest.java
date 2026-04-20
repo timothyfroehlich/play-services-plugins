@@ -165,15 +165,11 @@ public class DependencyTaskTest {
   /**
    * Verifies that SNAPSHOT artifact file content is tracked as a Gradle task input.
    *
-   * <p>DependencyTask is @CacheableTask and computes hashes of SNAPSHOT artifact files
-   * to detect when a re-published SNAPSHOT has different content. However, the
-   * {@code libraryFilesByGav} property is annotated @Internal, which means Gradle's
-   * up-to-date checking ignores it entirely. When a SNAPSHOT JAR changes on disk
-   * (same GAV, different content), Gradle considers the task UP-TO-DATE and never
-   * re-executes it -- making the snapshot hashing feature dead code.
-   *
-   * <p>This test fails until a proper @Input property is added that exposes the
-   * computed snapshot hashes to Gradle's up-to-date checking.
+   * <p>DependencyTask is {@code @CacheableTask} and computes hashes of SNAPSHOT artifact files
+   * to detect when a re-published SNAPSHOT has different content. The computed hashes are
+   * exposed to Gradle via the {@code @Input snapshotHashes} map, so changing a SNAPSHOT JAR
+   * on disk (same GAV, different content) invalidates the task's up-to-date state and forces
+   * re-execution.
    */
   @Test
   public void testSnapshotFileChange_isVisibleToGradleUpToDateChecking() throws Exception {
