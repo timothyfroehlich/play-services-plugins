@@ -1,0 +1,117 @@
+name: OSS Licenses CI
+
+on:
+  workflow_call:
+
+jobs:
+  # Build and test the oss-licenses plugin, then publish for downstream jobs.
+  oss-licenses-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6.0.2
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # ratchet:actions/setup-java@v5.2.0
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # ratchet:actions/setup-java@v5.2.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # ratchet:gradle/actions/setup-gradle@v6.1.0
+        with:
+          dependency-graph: generate-and-submit
+
+      - name: Build and run unit tests
+        # We run unit tests here but exclude the IntegrationTest matrix and E2E tests
+        # which are run in parallel downstream.
+        run: ./gradlew build -x e2eTestTask -PexcludeIntegrationTests
+        working-directory: ./oss-licenses-plugin
+
+      - name: Publish to local repo
+        run: ./gradlew publish
+        working-directory: ./oss-licenses-plugin
+
+      - name: Upload local repo artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ratchet:actions/upload-artifact@v7.0.1
+        with:
+          name: oss-licenses-local-repo
+          path: oss-licenses-plugin/build/repo/
+
+  # Run the version-matricked integration tests in parallel.
+  oss-licenses-integration-test:
+    needs: oss-licenses-build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        agp-version-key: [AGP74, AGP87, AGP812, AGP_STABLE, AGP_ALPHA]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6.0.2
+
+      - name: Download local repo artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # ratchet:actions/download-artifact@v8.0.1
+        with:
+          name: oss-licenses-local-repo
+          path: oss-licenses-plugin/build/repo/
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # ratchet:actions/setup-java@v5.2.0
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # ratchet:actions/setup-java@v5.2.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # ratchet:gradle/actions/setup-gradle@v6.1.0
+
+      - name: Run Integration Test (${{ matrix.agp-version-key }})
+        run: ./gradlew test --tests "com.google.android.gms.oss.licenses.plugin.IntegrationTest_${{ matrix.agp-version-key }}"
+        working-directory: ./oss-licenses-plugin
+
+  # Run end-to-end tests: build the full testapp against the AGP/Gradle version matrix.
+  # Uses the locally-published plugin from oss-licenses-build via -PusePublishedPluginFrom.
+  # CC strictness flags are in testapp/gradle.properties (always on).
+  oss-licenses-e2e:
+    needs: oss-licenses-build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        agp-version-key: [AGP812, AGP_STABLE, AGP_ALPHA]
+    env:
+      ANDROID_USER_HOME: /home/runner/.android
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6.0.2
+
+      - name: Download local repo artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # ratchet:actions/download-artifact@v8.0.1
+        with:
+          name: oss-licenses-local-repo
+          path: oss-licenses-plugin/build/repo/
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # ratchet:actions/setup-java@v5.2.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # ratchet:gradle/actions/setup-gradle@v6.1.0
+
+      - name: Pre-create Android SDK cache directory
+        run: mkdir -p "$ANDROID_USER_HOME/cache"
+
+      - name: Build testapp (verify ${{ matrix.agp-version-key }})
+        run: ./gradlew e2eTestTask --tests "com.google.android.gms.oss.licenses.plugin.EndToEndTest_${{ matrix.agp-version-key }}"
+        working-directory: oss-licenses-plugin

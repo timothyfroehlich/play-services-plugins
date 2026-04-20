@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.jvm.toolchain.JavaToolchainService
+
 plugins {
     id("groovy")
     id("java-gradle-plugin")
@@ -28,6 +31,14 @@ repositories {
     google()
     mavenCentral()
 }
+
+// Prepare the path to the Java 21 JVM used by the main build to inject into the
+// EndToEnd test's environment. Required when the running user doesn't have a
+// Java 21 JVM available
+val javaToolchains = project.extensions.getByType<JavaToolchainService>()
+val java21Home = javaToolchains.launcherFor {
+    languageVersion.set(JavaLanguageVersion.of(21))
+}.map { it.metadata.installationPath.asFile.absolutePath }
 
 java {
     toolchain {
@@ -65,9 +76,32 @@ dependencies {
     }
 }
 
+// AGP/Gradle version matrix — single source of truth for all GradleTestKit tests.
+// Each entry maps a test subclass name to its (AGP, Gradle) version pair.
+// The versions are injected as system properties so the test files contain no hardcoded versions.
+//
+// E2E versions are a subset of the integration versions. Integration tests extend the E2E set
+// with older AGP versions to ensure broad backward compatibility.
+val e2eVersions = mapOf(
+    "AGP812"      to ("8.12.2" to "8.14.1"),       // latest stable 8.x
+    "AGP_STABLE"  to ("9.1.1" to "9.4.1"),         // latest stable 9.x
+    "AGP_ALPHA"   to ("9.3.0-alpha01" to "9.5.0-rc-3"), // latest alpha
+)
+val integrationOnlyVersions = mapOf(
+    "AGP74" to ("7.4.2" to "7.5.1"), // oldest supported
+    "AGP87" to ("8.7.3" to "8.9"),   // mainstream mid-range
+)
+
+// Build the full maps with class-name prefixes
+val e2eTestVersions = e2eVersions.mapKeys { "EndToEndTest_${it.key}" }
+val integrationTestVersions = (e2eVersions + integrationOnlyVersions).mapKeys { "IntegrationTest_${it.key}" }
+
 val repo: Provider<Directory> = layout.buildDirectory.dir("repo")
 tasks.withType<Test>().configureEach {
     val localRepo = repo
+    // Capture into a local so the doFirst action doesn't serialize a reference to the outer
+    // build script object (which the configuration cache rejects).
+    val localJava21Home = java21Home
     // Make sure that build/repo is created and that it is used as input for the test task.
     // Replace this with something less ugly if https://github.com/gradle/gradle/issues/34870 is fixed
     dependsOn("publish")
@@ -79,12 +113,23 @@ tasks.withType<Test>().configureEach {
     ).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("repo")
 
     val localVersion = project.version.toString()
-    systemProperties["plugin_version"] = localVersion // value used by EndToEndTest.kt
-    systemProperties["testkit_path"] = layout.buildDirectory.dir("testkit").get().asFile.absolutePath // value used by EndToEndTest.kt
+    systemProperties["plugin_version"] = localVersion // value used by IntegrationTest.kt
+    // Point TestKit to a directory inside the host Gradle User Home so it can be cached by CI (setup-gradle)
+    systemProperties["testkit_path"] = File(System.getProperty("user.home"), ".gradle/testkit").absolutePath
     doFirst {
+        // Resolved inside doFirst so contributors without JDK 21 can still run ./gradlew help, tasks, etc.
+        // — the toolchain is only required when a Test task actually executes.
+        systemProperties["java21_home"] = localJava21Home.get() // value used by EndToEndTest.kt
         // Inside doFirst to make sure that absolute path is not considered to be input to the task
-        systemProperties["repo_path"] = localRepo.get().asFile.absolutePath // value used by EndToEndTest.kt
+        systemProperties["repo_path"] = localRepo.get().asFile.absolutePath // value used by IntegrationTest.kt
     }
+
+    // Inject AGP/Gradle version pairs as system properties for each test subclass
+    (integrationTestVersions + e2eTestVersions).forEach { (className, versions) ->
+        systemProperties["$className.agpVersion"] = versions.first
+        systemProperties["$className.gradleVersion"] = versions.second
+    }
+
     minHeapSize = "512m"
     maxHeapSize = "2g"
     maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).takeIf { it > 0 } ?: 1
@@ -93,7 +138,35 @@ tasks.withType<Test>().configureEach {
         showStandardStreams = false
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
     }
+
+    // Allow CI to exclude heavy integration tests from the default 'test' task
+    // so they can be run in parallel matrix jobs instead.
+    if (project.hasProperty("excludeIntegrationTests")) {
+        filter {
+            excludeTestsMatching("*IntegrationTest*")
+        }
+    }
 }
+
+// Separate source set for heavy E2E tests that build the full testapp against multiple AGP versions.
+// Lives in src/e2eTest/kotlin/ — fully independent from the unit/integration test source set.
+val e2eTest by sourceSets.creating
+
+configurations[e2eTest.implementationConfigurationName].extendsFrom(configurations.testImplementation.get())
+configurations[e2eTest.runtimeOnlyConfigurationName].extendsFrom(configurations.testRuntimeOnly.get())
+
+dependencies {
+    "e2eTestImplementation"(gradleTestKit())
+}
+
+val e2eTestTask by tasks.registering(Test::class) {
+    description = "Runs end-to-end tests that build the full testapp against multiple AGP versions"
+    group = "verification"
+    testClassesDirs = e2eTest.output.classesDirs
+    classpath = e2eTest.runtimeClasspath
+}
+
+tasks.named("check") { dependsOn(e2eTestTask) }
 
 publishing {
     repositories {
