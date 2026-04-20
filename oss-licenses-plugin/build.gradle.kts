@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.jvm.toolchain.JavaToolchainService
+
 plugins {
     id("groovy")
     id("java-gradle-plugin")
@@ -65,9 +68,32 @@ dependencies {
     }
 }
 
+// AGP/Gradle version matrix — single source of truth for all GradleTestKit tests.
+// Each entry maps a test subclass name to its (AGP, Gradle) version pair.
+// The versions are injected as system properties so the test files contain no hardcoded versions.
+// LINT: if-this-then-update-that:version-matrix-definitions
+val integrationVersions = mapOf(
+    "AGP74"        to ("7.4.2" to "7.5.1"),       // oldest supported
+    "AGP80"        to ("8.0.2" to "8.0.2"),       // mainstream
+    "AGP87"        to ("8.7.3" to "8.9"),         // mainstream
+    "AGP812"       to ("8.12.2" to "8.14.1"),     // latest stable 8.x
+    "AGP_STABLE"   to ("9.0.1" to "9.1.0"),       // latest stable 9.x
+    "AGP_ALPHA"    to ("9.2.0-alpha02" to "9.4.0"), // latest alpha
+)
+
+// Build the full maps with class-name prefixes
+val integrationTestVersions = integrationVersions.mapKeys { "IntegrationTest_${it.key}" }
+
 val repo: Provider<Directory> = layout.buildDirectory.dir("repo")
 tasks.withType<Test>().configureEach {
     val localRepo = repo
+    // Prepare the path to the Java 21 JVM used by the main build to inject into the
+    // integration test's environment. Required for some AGP versions (9.0+)
+    val javaToolchains = project.extensions.getByType<JavaToolchainService>()
+    val java21Home = javaToolchains.launcherFor {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }.map { it.metadata.installationPath.asFile.absolutePath }
+
     // Make sure that build/repo is created and that it is used as input for the test task.
     // Replace this with something less ugly if https://github.com/gradle/gradle/issues/34870 is fixed
     dependsOn("publish")
@@ -80,11 +106,22 @@ tasks.withType<Test>().configureEach {
 
     val localVersion = project.version.toString()
     systemProperties["plugin_version"] = localVersion // value used by IntegrationTest.kt
-    systemProperties["testkit_path"] = layout.buildDirectory.dir("testkit").get().asFile.absolutePath // value used by IntegrationTest.kt
+    // Point TestKit to a directory inside the host Gradle User Home so it can be cached by CI (setup-gradle)
+    systemProperties["testkit_path"] = File(System.getProperty("user.home"), ".gradle/testkit").absolutePath
     doFirst {
+        // Resolved inside doFirst so contributors without JDK 21 can still run ./gradlew help, tasks, etc.
+        // — the toolchain is only required when a Test task actually executes.
+        systemProperties["java21_home"] = java21Home.get() // value used by IntegrationTest.kt
         // Inside doFirst to make sure that absolute path is not considered to be input to the task
         systemProperties["repo_path"] = localRepo.get().asFile.absolutePath // value used by IntegrationTest.kt
     }
+
+    // Inject AGP/Gradle version pairs as system properties for each test subclass
+    integrationTestVersions.forEach { (className, versions) ->
+        systemProperties["$className.agpVersion"] = versions.first
+        systemProperties["$className.gradleVersion"] = versions.second
+    }
+
     minHeapSize = "512m"
     maxHeapSize = "2g"
     maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).takeIf { it > 0 } ?: 1
@@ -92,6 +129,14 @@ tasks.withType<Test>().configureEach {
         events("passed", "skipped", "failed")
         showStandardStreams = false
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+
+    // Allow CI to exclude heavy integration tests from the default 'test' task
+    // so they can be run in parallel matrix jobs instead.
+    if (project.hasProperty("excludeIntegrationTests")) {
+        filter {
+            excludeTestsMatching("*IntegrationTest*")
+        }
     }
 }
 
