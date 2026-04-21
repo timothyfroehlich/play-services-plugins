@@ -86,8 +86,6 @@ class OssLicensesV2Test {
         }
     }
 
-
-
     @Test
     fun testV2ActivitySetActivityTitle() {
         val customTitle = "Test Title via API"
@@ -108,13 +106,15 @@ class OssLicensesV2Test {
                 val typedValue = TypedValue()
                 val theme = activity.theme
                 val success = theme.resolveAttribute(android.R.attr.windowBackground, typedValue, true)
-                
+
                 assertTrue("Failed to resolve windowBackground attribute", success)
-                
+
                 // The expected color is #FCE4EC (Light Pink) defined in Theme.CustomOssThemeV2
                 val expectedColor = Color.parseColor("#FCE4EC")
                 assertEquals("Theme background color mismatch", expectedColor, typedValue.data)
             }
         }
     }
+
+
 }

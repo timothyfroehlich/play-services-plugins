@@ -71,18 +71,23 @@ dependencies {
 // AGP/Gradle version matrix — single source of truth for all GradleTestKit tests.
 // Each entry maps a test subclass name to its (AGP, Gradle) version pair.
 // The versions are injected as system properties so the test files contain no hardcoded versions.
-// Keep the keys in sync with the agp-version-key matrix in
+// Keep the keys in sync with the agp-version-key matrices in
 // .github/workflows/oss-licenses.yml.
-val integrationVersions = mapOf(
-    "AGP74"        to ("7.4.2" to "7.5.1"),       // oldest supported
-    "AGP87"        to ("8.7.3" to "8.9"),         // mainstream
-    "AGP812"       to ("8.12.2" to "8.14.1"),     // latest stable 8.x
-    "AGP_STABLE"   to ("9.0.1" to "9.1.0"),       // latest stable 9.x
-    "AGP_ALPHA"    to ("9.2.0-alpha02" to "9.4.0"), // latest alpha
+// E2E versions are a subset of the integration versions. Integration tests extend the E2E set
+// with older AGP versions to ensure broad backward compatibility.
+val e2eVersions = mapOf(
+    "AGP812"      to ("8.12.2" to "8.14.1"),       // latest stable 8.x
+    "AGP_STABLE"  to ("9.1.1" to "9.4.1"),         // latest stable 9.x
+    "AGP_ALPHA"   to ("9.3.0-alpha01" to "9.5.0-rc-3"), // latest alpha
+)
+val integrationOnlyVersions = mapOf(
+    "AGP74" to ("7.4.2" to "7.5.1"), // oldest supported
+    "AGP87" to ("8.7.3" to "8.9"),   // mainstream mid-range
 )
 
 // Build the full maps with class-name prefixes
-val integrationTestVersions = integrationVersions.mapKeys { "IntegrationTest_${it.key}" }
+val e2eTestVersions = e2eVersions.mapKeys { "EndToEndTest_${it.key}" }
+val integrationTestVersions = (e2eVersions + integrationOnlyVersions).mapKeys { "IntegrationTest_${it.key}" }
 
 // Separate source set for GradleTestKit integration tests that run the plugin
 // against the AGP/Gradle matrix. Keeps the default 'test' task fast.
@@ -150,14 +155,41 @@ val integrationTestTask by tasks.registering(Test::class) {
         systemProperties["repo_path"] = localRepo.get().asFile.absolutePath // value used by IntegrationTest.kt
     }
 
-    // Inject AGP/Gradle version pairs as system properties for each test subclass
+    // Inject AGP/Gradle version pairs as system properties for each integration test subclass.
     integrationTestVersions.forEach { (className, versions) ->
         systemProperties["$className.agpVersion"] = versions.first
         systemProperties["$className.gradleVersion"] = versions.second
     }
 }
 
-tasks.named("check") { dependsOn(integrationTestTask) }
+// Separate source set for heavy E2E tests that build the full testapp against multiple AGP versions.
+// Lives in src/e2eTest/kotlin/ — fully independent from the unit/integration test source set.
+val e2eTest by sourceSets.creating {
+    compileClasspath += sourceSets.main.get().output
+    runtimeClasspath += sourceSets.main.get().output
+}
+
+configurations[e2eTest.implementationConfigurationName].extendsFrom(configurations.testImplementation.get())
+configurations[e2eTest.runtimeOnlyConfigurationName].extendsFrom(configurations.testRuntimeOnly.get())
+
+dependencies {
+    "e2eTestImplementation"(gradleTestKit())
+}
+
+val e2eTestTask by tasks.registering(Test::class) {
+    description = "Runs end-to-end tests that build the full testapp against multiple AGP versions"
+    group = "verification"
+    testClassesDirs = e2eTest.output.classesDirs
+    classpath = e2eTest.runtimeClasspath
+
+    // Inject AGP/Gradle version pairs as system properties for each e2e subclass.
+    e2eTestVersions.forEach { (className, versions) ->
+        systemProperties["$className.agpVersion"] = versions.first
+        systemProperties["$className.gradleVersion"] = versions.second
+    }
+}
+
+tasks.named("check") { dependsOn(integrationTestTask, e2eTestTask) }
 
 publishing {
     repositories {
