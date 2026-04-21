@@ -71,6 +71,8 @@ dependencies {
 // AGP/Gradle version matrix — single source of truth for all GradleTestKit tests.
 // Each entry maps a test subclass name to its (AGP, Gradle) version pair.
 // The versions are injected as system properties so the test files contain no hardcoded versions.
+// Keep the keys in sync with the agp-version-key matrix in
+// .github/workflows/oss-licenses.yml.
 val integrationVersions = mapOf(
     "AGP74"        to ("7.4.2" to "7.5.1"),       // oldest supported
     "AGP87"        to ("8.7.3" to "8.9"),         // mainstream

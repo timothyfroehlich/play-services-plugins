@@ -48,6 +48,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # Keep this list in sync with the integrationVersions map in
+      # oss-licenses-plugin/build.gradle.kts.
       matrix:
         agp-version-key: [AGP74, AGP87, AGP812, AGP_STABLE, AGP_ALPHA]
     steps:
