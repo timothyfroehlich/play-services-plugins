@@ -48,8 +48,6 @@ abstract class IntegrationTest {
     @get:Rule
     val tempDirectory: TemporaryFolder = TemporaryFolder()
 
-    private fun isBuiltInKotlinEnabled() = agpVersion.startsWith("9.")
-
     private lateinit var projectDir: File
 
     private fun createRunner(vararg arguments: String): GradleRunner {
@@ -98,6 +96,9 @@ abstract class IntegrationTest {
             """
             android.useAndroidX=true
             com.google.protobuf.use_unsafe_pre22_gencode=true
+            # AGP 9 auto-adds kotlin-stdlib via built-in Kotlin; opt out so the license
+            # report is identical across the AGP 8 / AGP 9 matrix. Harmless on AGP 8.
+            android.builtInKotlin=false
         """.trimIndent()
         )
         File(dir, "settings.gradle").writeText(
@@ -122,11 +123,11 @@ abstract class IntegrationTest {
         Assert.assertEquals(result.task(":releaseOssDependencyTask")!!.outcome, TaskOutcome.SUCCESS)
         Assert.assertEquals(result.task(":releaseOssLicensesTask")!!.outcome, TaskOutcome.SUCCESS)
         val dependenciesJson = File(projectDir, "build/generated/third_party_licenses/release/dependencies.json")
-        Assert.assertEquals(expectedDependenciesJson(isBuiltInKotlinEnabled(), agpVersion), dependenciesJson.readText())
+        Assert.assertEquals(expectedDependenciesJson(), dependenciesJson.readText())
 
         val metadata =
             File(projectDir, "build/generated/res/releaseOssLicensesTask/raw/third_party_license_metadata")
-        Assert.assertEquals(expectedContents(isBuiltInKotlinEnabled()), metadata.readText())
+        Assert.assertEquals(expectedContents(), metadata.readText())
     }
 
     @Test
@@ -389,7 +390,7 @@ class IntegrationTest_AGP812 : IntegrationTest()
 class IntegrationTest_AGP_STABLE : IntegrationTest()
 class IntegrationTest_AGP_ALPHA : IntegrationTest()
 
-private fun expectedDependenciesJson(builtInKotlinEnabled: Boolean, agpVersion: String) = """[
+private fun expectedDependenciesJson() = """[
     {
         "group": "androidx.annotation",
         "name": "annotation",
@@ -558,21 +559,11 @@ private fun expectedDependenciesJson(builtInKotlinEnabled: Boolean, agpVersion: 
     {
         "group": "com.google.android.gms",
         "name": "play-services-tasks",
-        "version": "17.0.0"${if (builtInKotlinEnabled) """
-    },
-    {
-        "group": "org.jetbrains",
-        "name": "annotations",
-        "version": "13.0"
-    },
-    {
-        "group": "org.jetbrains.kotlin",
-        "name": "kotlin-stdlib",
-        "version": "${if (agpVersion.startsWith("9"))"2.2.10" else "2.2.0"}"""" else ""}
+        "version": "17.0.0"
     }
 ]"""
 
-private fun expectedContents(builtInKotlinEnabled: Boolean) = """0:46 Android Support Library Annotations
+private fun expectedContents() = """0:46 Android Support Library Annotations
 0:46 Android AppCompat Library v7
 0:46 Android Arch-Common
 0:46 Android Arch-Runtime
@@ -615,7 +606,4 @@ private fun expectedContents(builtInKotlinEnabled: Boolean) = """0:46 Android Su
 48547:11365 absl
 47:47 play-services-oss-licenses
 47:47 play-services-tasks
-${if (builtInKotlinEnabled) """0:46 IntelliJ IDEA Annotations
-0:46 Kotlin Stdlib
-""" else ""
-}"""
+"""
