@@ -84,8 +84,40 @@ val integrationVersions = mapOf(
 // Build the full maps with class-name prefixes
 val integrationTestVersions = integrationVersions.mapKeys { "IntegrationTest_${it.key}" }
 
+// Separate source set for GradleTestKit integration tests that run the plugin
+// against the AGP/Gradle matrix. Keeps the default 'test' task fast.
+val integrationTest by sourceSets.creating {
+    compileClasspath += sourceSets.main.get().output
+    runtimeClasspath += sourceSets.main.get().output
+}
+
+configurations[integrationTest.implementationConfigurationName].extendsFrom(configurations.testImplementation.get())
+configurations[integrationTest.runtimeOnlyConfigurationName].extendsFrom(configurations.testRuntimeOnly.get())
+
+dependencies {
+    "integrationTestImplementation"(gradleTestKit())
+}
+
 val repo: Provider<Directory> = layout.buildDirectory.dir("repo")
+
+// Shared Test-task settings that apply to both unit and integration tests.
 tasks.withType<Test>().configureEach {
+    minHeapSize = "512m"
+    maxHeapSize = "2g"
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).takeIf { it > 0 } ?: 1
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = false
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
+
+val integrationTestTask by tasks.registering(Test::class) {
+    description = "Runs GradleTestKit integration tests against the AGP/Gradle version matrix"
+    group = "verification"
+    testClassesDirs = integrationTest.output.classesDirs
+    classpath = integrationTest.runtimeClasspath
+
     val localRepo = repo
     // Prepare the path to the Java 21 JVM used by the main build to inject into the
     // integration test's environment. Required for some AGP versions (9.0+)
@@ -121,24 +153,9 @@ tasks.withType<Test>().configureEach {
         systemProperties["$className.agpVersion"] = versions.first
         systemProperties["$className.gradleVersion"] = versions.second
     }
-
-    minHeapSize = "512m"
-    maxHeapSize = "2g"
-    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).takeIf { it > 0 } ?: 1
-    testLogging {
-        events("passed", "skipped", "failed")
-        showStandardStreams = false
-        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
-    }
-
-    // Allow CI to exclude heavy integration tests from the default 'test' task
-    // so they can be run in parallel matrix jobs instead.
-    if (project.hasProperty("excludeIntegrationTests")) {
-        filter {
-            excludeTestsMatching("*IntegrationTest*")
-        }
-    }
 }
+
+tasks.named("check") { dependsOn(integrationTestTask) }
 
 publishing {
     repositories {

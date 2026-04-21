@@ -28,8 +28,9 @@ jobs:
           dependency-graph: generate-and-submit
 
       - name: Build and run unit tests
-        # We run unit tests here but exclude the IntegrationTest matrix.
-        run: ./gradlew build -PexcludeIntegrationTests
+        # Integration tests live in their own source set + task (integrationTestTask),
+        # so the default 'test' task only runs the unit suite.
+        run: ./gradlew assemble test
         working-directory: ./oss-licenses-plugin
 
       - name: Publish to local repo
@@ -78,8 +79,8 @@ jobs:
         uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # ratchet:gradle/actions/setup-gradle@v6.1.0
 
       - name: Run Integration Test (${{ matrix.agp-version-key }})
-        # We skip 'publish' here because we want to use the pre-built plugin from the artifact.
-        run: ./gradlew test --tests "com.google.android.gms.oss.licenses.plugin.IntegrationTest_${{ matrix.agp-version-key }}" -x publish
+        # Skip 'publish' here because we want to use the pre-built plugin from the artifact.
+        run: ./gradlew integrationTestTask --tests "com.google.android.gms.oss.licenses.plugin.IntegrationTest_${{ matrix.agp-version-key }}" -x publish
         working-directory: ./oss-licenses-plugin
 
   # Aggregate status
