@@ -48,7 +48,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      # LINT: if-this-then-update-that:version-matrix-definitions
       matrix:
         agp-version-key: [AGP74, AGP80, AGP87, AGP812, AGP_STABLE, AGP_ALPHA]
     steps:

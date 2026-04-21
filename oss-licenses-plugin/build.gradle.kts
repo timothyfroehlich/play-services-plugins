@@ -71,7 +71,6 @@ dependencies {
 // AGP/Gradle version matrix — single source of truth for all GradleTestKit tests.
 // Each entry maps a test subclass name to its (AGP, Gradle) version pair.
 // The versions are injected as system properties so the test files contain no hardcoded versions.
-// LINT: if-this-then-update-that:version-matrix-definitions
 val integrationVersions = mapOf(
     "AGP74"        to ("7.4.2" to "7.5.1"),       // oldest supported
     "AGP80"        to ("8.0.2" to "8.0.2"),       // mainstream
