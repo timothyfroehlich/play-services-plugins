@@ -128,7 +128,9 @@ val integrationTestTask by tasks.registering(Test::class) {
 
     // Make sure that build/repo is created and that it is used as input for the test task.
     // Replace this with something less ugly if https://github.com/gradle/gradle/issues/34870 is fixed
-    dependsOn("publish")
+    // Target the specific local-repo publish task, not the umbrella "publish", so that
+    // adding other repos (e.g. plugin-portal) doesn't start publishing them during tests.
+    dependsOn("publishAllPublicationsToLocalRepository")
     inputs.files(
         localRepo.map {
             // Exclude maven-metadata.xml as they contain timestamps but have no effect on the test outcomes
@@ -160,7 +162,8 @@ tasks.named("check") { dependsOn(integrationTestTask) }
 publishing {
     repositories {
         maven {
-          url = uri(repo)
+            name = "local"
+            url = uri(repo)
         }
     }
     publications {

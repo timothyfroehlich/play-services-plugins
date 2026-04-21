@@ -34,7 +34,7 @@ jobs:
         working-directory: ./oss-licenses-plugin
 
       - name: Publish to local repo
-        run: ./gradlew publish
+        run: ./gradlew publishAllPublicationsToLocalRepository
         working-directory: ./oss-licenses-plugin
 
       - name: Upload local repo artifact
@@ -79,8 +79,8 @@ jobs:
         uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # ratchet:gradle/actions/setup-gradle@v6.1.0
 
       - name: Run Integration Test (${{ matrix.agp-version-key }})
-        # Skip 'publish' here because we want to use the pre-built plugin from the artifact.
-        run: ./gradlew integrationTestTask --tests "com.google.android.gms.oss.licenses.plugin.IntegrationTest_${{ matrix.agp-version-key }}" -x publish
+        # Skip the local-repo publish here because we want to use the pre-built plugin from the artifact.
+        run: ./gradlew integrationTestTask --tests "com.google.android.gms.oss.licenses.plugin.IntegrationTest_${{ matrix.agp-version-key }}" -x publishAllPublicationsToLocalRepository
         working-directory: ./oss-licenses-plugin
 
   # Aggregate status
