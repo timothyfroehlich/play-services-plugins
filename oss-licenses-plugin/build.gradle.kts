@@ -117,15 +117,11 @@ tasks.withType<Test>().configureEach {
     }
 }
 
-val integrationTestTask by tasks.registering(Test::class) {
-    description = "Runs GradleTestKit integration tests against the AGP/Gradle version matrix"
-    group = "verification"
-    testClassesDirs = integrationTest.output.classesDirs
-    classpath = integrationTest.runtimeClasspath
-
+// Common TestKit setup: both integration and e2e tasks spawn GradleRunner instances
+// that need the locally-published plugin, a Java 21 toolchain path for newer AGP, and
+// a repo_path pointing at the local publication directory.
+fun Test.configureTestKitDefaults() {
     val localRepo = repo
-    // Prepare the path to the Java 21 JVM used by the main build to inject into the
-    // integration test's environment. Required for some AGP versions (9.0+)
     val javaToolchains = project.extensions.getByType<JavaToolchainService>()
     val java21Home = javaToolchains.launcherFor {
         languageVersion.set(JavaLanguageVersion.of(21))
@@ -144,16 +140,25 @@ val integrationTestTask by tasks.registering(Test::class) {
     ).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("repo")
 
     val localVersion = project.version.toString()
-    systemProperties["plugin_version"] = localVersion // value used by IntegrationTest.kt
-    // Point TestKit to a directory inside the host Gradle User Home so it can be cached by CI (setup-gradle)
+    systemProperties["plugin_version"] = localVersion
+    // Point TestKit to a directory inside the host Gradle User Home so it can be cached by CI (setup-gradle).
     systemProperties["testkit_path"] = File(System.getProperty("user.home"), ".gradle/testkit").absolutePath
     doFirst {
         // Resolved inside doFirst so contributors without JDK 21 can still run ./gradlew help, tasks, etc.
         // — the toolchain is only required when a Test task actually executes.
-        systemProperties["java21_home"] = java21Home.get() // value used by IntegrationTest.kt
-        // Inside doFirst to make sure that absolute path is not considered to be input to the task
-        systemProperties["repo_path"] = localRepo.get().asFile.absolutePath // value used by IntegrationTest.kt
+        systemProperties["java21_home"] = java21Home.get()
+        // Inside doFirst to keep absolute paths out of the task input fingerprint.
+        systemProperties["repo_path"] = localRepo.get().asFile.absolutePath
     }
+}
+
+val integrationTestTask by tasks.registering(Test::class) {
+    description = "Runs GradleTestKit integration tests against the AGP/Gradle version matrix"
+    group = "verification"
+    testClassesDirs = integrationTest.output.classesDirs
+    classpath = integrationTest.runtimeClasspath
+
+    configureTestKitDefaults()
 
     // Inject AGP/Gradle version pairs as system properties for each integration test subclass.
     integrationTestVersions.forEach { (className, versions) ->
@@ -181,6 +186,8 @@ val e2eTestTask by tasks.registering(Test::class) {
     group = "verification"
     testClassesDirs = e2eTest.output.classesDirs
     classpath = e2eTest.runtimeClasspath
+
+    configureTestKitDefaults()
 
     // Inject AGP/Gradle version pairs as system properties for each e2e subclass.
     e2eTestVersions.forEach { (className, versions) ->
