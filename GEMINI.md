@@ -39,7 +39,10 @@ This repository hosts Gradle plugins that improve the developer experience for t
 
 Managed via GitHub Actions with modern best practices:
 - **Workflows:**
-  - `main.yml`: The primary CI workflow. It includes a `lint-and-check` job (Gradle Wrapper validation, Actionlint, and Ratchet) and executes a build matrix that independently runs `assemble`, `check`, and `test` for each plugin project.
+  - `ci.yml`: Top-level coordinator. Uses `dorny/paths-filter` to detect which plugins changed and dispatches the matching specialist workflows via `workflow_call`. Aggregates their results in a `ci-success` gate job.
+  - `lint.yml`: Runs on every PR — Gradle Wrapper validation, Actionlint, and Ratchet pin check.
+  - `oss-licenses.yml`: Builds and tests the `oss-licenses-plugin`.
+  - `services_and_version_matcher.yml`: Builds and tests `google-services-plugin` and `strict-version-matcher-plugin`.
   - `generate_release_rcs.yml`: Handles the generation of release candidates.
 - **Security & Maintenance:**
   - **Version Pinning:** `sethvargo/ratchet` is used to enforce that all GitHub Actions are pinned to immutable SHA-256 checksums to protect against supply chain attacks.
