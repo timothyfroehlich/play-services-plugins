@@ -14,14 +14,14 @@ These tests verify the logic of individual tasks and utility classes.
 *   **Focus:** Task-specific logic, input/output handling, and edge cases.
 *   **Execution:** `./gradlew test`
 
-### 2. Integration Tests (`src/test/`)
-These tests verify the plugin's integration with the Gradle lifecycle and its behavior in a real-world project structure.
+### 2. Integration Tests (`src/integrationTest/`)
+These tests verify the plugin's integration with the Gradle lifecycle and its behavior in a real-world project structure. They live in a dedicated source set so the default `test` task stays fast.
 
 *   **File:** `IntegrationTest.kt`
 *   **Mechanism:** Uses `GradleTestKit` (`GradleRunner`) to execute the plugin against a set of static test projects.
 *   **Focus:** Task wiring, Configuration Cache compatibility, and relocatability.
 *   **Matrix:** Defined in `build.gradle.kts` (`integrationVersions`).
-*   **Execution:** `./gradlew test` (runs alongside unit tests).
+*   **Execution:** `./gradlew integrationTestTask` (also runs as part of `check`).
 
 ---
 
@@ -47,6 +47,7 @@ To ensure tests run consistently regardless of the host environment, the build s
 
 | Task | Command | Description |
 | :--- | :--- | :--- |
-| **Full Check** | `./gradlew check` | Runs all tests (Unit and Integration). |
-| **Unit & Integration** | `./gradlew test` | Runs internal plugin tests and `IntegrationTest`. |
-| **Publish** | `./gradlew publish` | Publishes the plugin to the internal `build/repo`. |
+| **Full Check** | `./gradlew check` | Runs unit tests and the full integration matrix. |
+| **Unit only** | `./gradlew test` | Runs internal plugin unit tests only. |
+| **Integration only** | `./gradlew integrationTestTask` | Runs the GradleTestKit integration matrix. |
+| **Publish** | `./gradlew publishAllPublicationsToLocalRepository` | Publishes the plugin to the internal `build/repo`. |
