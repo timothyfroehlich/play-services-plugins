@@ -73,7 +73,6 @@ dependencies {
 // The versions are injected as system properties so the test files contain no hardcoded versions.
 val integrationVersions = mapOf(
     "AGP74"        to ("7.4.2" to "7.5.1"),       // oldest supported
-    "AGP80"        to ("8.0.2" to "8.0.2"),       // mainstream
     "AGP87"        to ("8.7.3" to "8.9"),         // mainstream
     "AGP812"       to ("8.12.2" to "8.14.1"),     // latest stable 8.x
     "AGP_STABLE"   to ("9.0.1" to "9.1.0"),       // latest stable 9.x

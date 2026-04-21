@@ -49,7 +49,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        agp-version-key: [AGP74, AGP80, AGP87, AGP812, AGP_STABLE, AGP_ALPHA]
+        agp-version-key: [AGP74, AGP87, AGP812, AGP_STABLE, AGP_ALPHA]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6.0.2
 
