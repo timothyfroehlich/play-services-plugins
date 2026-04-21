@@ -127,7 +127,8 @@ jobs:
         run: mkdir -p "$ANDROID_USER_HOME/cache"
 
       - name: Build testapp (verify ${{ matrix.agp-version-key }})
-        run: ./gradlew e2eTestTask --tests "com.google.android.gms.oss.licenses.plugin.EndToEndTest_${{ matrix.agp-version-key }}"
+        # Skip the local-repo publish here because we want to use the pre-built plugin from the artifact.
+        run: ./gradlew e2eTestTask --tests "com.google.android.gms.oss.licenses.plugin.EndToEndTest_${{ matrix.agp-version-key }}" -x publishAllPublicationsToLocalRepository
         working-directory: oss-licenses-plugin
 
   # Aggregate status
