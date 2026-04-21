@@ -39,9 +39,7 @@ The `build.gradle.kts` file is the **single source of truth** for all versions.
 To allow safe parallel execution, each test subclass uses a dedicated `TestKit` directory (set via `.withTestKitDir()`). This prevents different AGP versions from clobbering each other's Gradle User Home caches.
 
 ### JVM & Toolchain Management
-To ensure tests run consistently regardless of the host environment:
-1.  **Java 21 Injection:** The build script uses the `JavaToolchainService` to locate a Java 21 JDK. This path is injected into the tests via the `java21_home` system property when a test task actually executes.
-2.  **Daemon Provisioning:** For older Gradle versions (like 8.11), the tests explicitly delete `gradle-daemon-jvm.properties` in the test workspace to prevent failing internal toolchain discovery.
+To ensure tests run consistently regardless of the host environment, the build script uses the `JavaToolchainService` to locate a Java 21 JDK. This path is injected into the tests via the `java21_home` system property when a test task actually executes.
 
 ---
 
