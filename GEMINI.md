@@ -65,7 +65,7 @@ Managed via GitHub Actions with modern best practices:
 
 ## 5. Engineering Standards
 
-- **Testing:** All changes must be verified with tests. `oss-licenses-plugin` requires verification against the full AGP/Gradle version matrix in `EndToEndTest.kt`.
+- **Testing:** All changes must be verified with tests. `oss-licenses-plugin` requires verification against the full AGP/Gradle version matrix in `IntegrationTest.kt`.
 - **Configuration Cache:** New tasks or refactors MUST maintain compatibility with the Gradle Configuration Cache. Use lazy properties and avoid direct project access during task execution.
 - **Commit Messages:** Follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification.
   - Format: `<type>[optional scope]: <description>`
