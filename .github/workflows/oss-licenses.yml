@@ -85,12 +85,13 @@ jobs:
 
   # Run end-to-end tests: build the full testapp against the AGP/Gradle version matrix.
   # Uses the locally-published plugin from oss-licenses-build via -PusePublishedPluginFrom.
-  # CC strictness flags are in testapp/gradle.properties (always on).
   oss-licenses-e2e:
     needs: oss-licenses-build
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # Keep this list in sync with the e2eVersions map in
+      # oss-licenses-plugin/build.gradle.kts.
       matrix:
         agp-version-key: [AGP812, AGP_STABLE, AGP_ALPHA]
     env:
@@ -119,6 +120,9 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # ratchet:gradle/actions/setup-gradle@v6.1.0
 
+      # setup-gradle's cache-restore step runs before any step creates $ANDROID_USER_HOME,
+      # and it fails if the directory it's asked to restore into doesn't exist. Pre-creating
+      # it here keeps the cache path stable across runs.
       - name: Pre-create Android SDK cache directory
         run: mkdir -p "$ANDROID_USER_HOME/cache"
 
